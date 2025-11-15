@@ -1,4 +1,4 @@
-package test.java.com.library.util;
+package library.util;
 import com.library.util.PasswordUtil;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -45,7 +45,7 @@ public class PasswordUtilTest {
 
     @Test
     public void testHashPassword_ShouldNotBeNull() {
-        String password = "test";
+        String password = "";
         String hash = PasswordUtil.hashPassword(password);
 
         assertNotNull("Hash should not be null", hash);

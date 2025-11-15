@@ -1,4 +1,4 @@
-package test.java.com.library.dao;
+package library.dao;
 
 import com.library.dao.UserDAO;
 import com.library.model.User;
