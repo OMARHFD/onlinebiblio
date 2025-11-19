@@ -198,6 +198,6 @@ pipeline {
         always {
             echo "Pipeline finished."
             bat "docker image prune -f"
-        }
+        }
     }
 }
