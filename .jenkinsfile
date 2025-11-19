@@ -1,0 +1,211 @@
+pipeline {
+    agent any
+
+    environment {
+        // Database
+        DB_USERNAME = "tarik"
+        DB_PASSWORD = "tarik123"
+        DB_URL = "jdbc:mysql://host.docker.internal:3306/online_library?useSSL=false&serverTimezone=UTC"
+
+        // Docker
+        DOCKER_IMAGE = "onlinebiblio"
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        DOCKER_REGISTRY = "tarik123abc"  // Docker Hub username
+
+        // Kubernetes
+        K8S_NAMESPACE = "online-library"
+        K8S_DEPLOYMENT_NAME = "online-library"
+        K8S_SERVICE_NAME = "online-library-service"  // ← AJOUTER CECI
+
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/tarikouabrk1/onlinebiblio'
+            }
+        }
+        stage('Setup Minikube') {
+    steps {
+        echo "Setting up Minikube cluster..."
+        script {
+            def status = bat(script: '@minikube status 2>nul', returnStatus: true)
+
+            if (status != 0) {
+                echo "Starting Minikube with 3GB memory..."
+                bat "minikube delete 2>nul || echo No existing cluster"
+                // Réduire à 3GB au lieu de 4GB
+                bat "minikube start --driver=docker --memory=3072 --cpus=2"
+            } else {
+                echo "Minikube detected. Verifying API access..."
+                def apiTest = bat(
+                    script: '@minikube kubectl -- get nodes 2>nul',
+                    returnStatus: true
+                )
+
+                if (apiTest != 0) {
+                    echo "API not responding. Recreating cluster..."
+                    bat "minikube delete"
+                    sleep(5)
+                    bat "minikube start --driver=docker --memory=3072 --cpus=2"
+                } else {
+                    echo "Cluster is healthy!"
+                }
+            }
+
+            // Attendre que l'API soit accessible
+            echo "Waiting for Kubernetes API..."
+            def apiReady = false
+            def maxAttempts = 30
+            def attempt = 0
+
+            while (!apiReady && attempt < maxAttempts) {
+                attempt++
+                sleep(10)
+
+                def apiStatus = bat(
+                    script: '@minikube kubectl -- get nodes 2>nul',
+                    returnStatus: true
+                )
+
+                if (apiStatus == 0) {
+                    apiReady = true
+                    echo "✅ Kubernetes API is ready! (after ${attempt * 10}s)"
+                } else {
+                    echo "⏳ Still waiting... (${attempt * 10}s elapsed)"
+                }
+            }
+
+            if (!apiReady) {
+                error("❌ Kubernetes API did not become ready after ${maxAttempts * 10} seconds!")
+            }
+        }
+
+        echo "Verifying cluster status..."
+        bat "minikube status"
+        bat "minikube kubectl -- get nodes"
+    }
+}
+
+        stage('Build & Test') {
+            steps {
+                echo "Building and testing the application..."
+                bat "mvn clean verify"
+            }
+        }
+
+        stage('Copy Dependencies') {
+            steps {
+                echo "Copying Maven dependencies..."
+                bat "mvn dependency:copy-dependencies -DoutputDirectory=target/dependency"
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            environment {
+                SCANNER_HOME = tool name: 'SonarScanner',
+                                   type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+            }
+
+            steps {
+                bat "\"${SCANNER_HOME}\\bin\\sonar-scanner.bat\" " +
+                    "-Dsonar.projectKey=onlinebiblio " +
+                    "-Dsonar.projectName=OnlineBiblio " +
+                    "-Dsonar.sources=src/main/java " +
+                    "-Dsonar.tests=src/test/java " +
+                    "-Dsonar.java.binaries=target/classes " +
+                    "-Dsonar.java.libraries=target/dependency/*.jar " +
+                    "-Dsonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml " +
+                    "-Dsonar.host.url=http://localhost:9000 " +
+                    "-Dsonar.token=squ_2bdfa87eef4adf7312650e24d5f03e934144b9e8"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image..."
+                bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                bat "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+            }
+        }
+
+        stage('Push to Docker Registry') {
+            steps {
+                echo "Pushing Docker image to Docker Hub..."
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
+
+                        // Push the version tag
+                        bat "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
+                        bat "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
+
+                        // Push latest tag
+                        bat "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+                        bat "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
+                    }
+                }
+            }
+        }
+
+
+        stage('Deploy to Kubernetes') {
+    steps {
+        echo "Deploying to Kubernetes..."
+
+        // Utiliser minikube kubectl -- directement
+        bat "minikube kubectl -- apply -f k8s/namespace.yaml --validate=false"
+        bat "minikube kubectl -- apply -f k8s/mysql-deployment.yaml --validate=false"
+        bat "minikube kubectl -- apply -f k8s/mysql-service.yaml --validate=false"
+        bat "minikube kubectl -- apply -f k8s/app-deployment.yaml --validate=false"
+        bat "minikube kubectl -- apply -f k8s/app-service.yaml --validate=false"
+
+        // Update image
+        bat "minikube kubectl -- set image deployment/${K8S_DEPLOYMENT_NAME} online-library=${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} -n ${K8S_NAMESPACE} "
+
+        // Rollout status
+        bat "minikube kubectl -- rollout status deployment/${K8S_DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}"
+    }
+}
+
+        stage('Verify Deployment') {
+    steps {
+        echo "Verifying Kubernetes deployment..."
+        bat "minikube kubectl -- get pods -n ${K8S_NAMESPACE}"
+        bat "minikube kubectl -- get services -n ${K8S_NAMESPACE}"
+
+        echo "=========================================="
+        echo "✨ TO ACCESS YOUR APPLICATION:"
+        echo "=========================================="
+        echo ""
+        echo "1. Open a NEW terminal (PowerShell or CMD)"
+        echo "2. Run this command:"
+        echo "   kubectl port-forward -n ${K8S_NAMESPACE} svc/${K8S_SERVICE_NAME} 8083:8080"
+        echo "3. Keep the terminal open"
+        echo "4. Open your browser to:"
+        echo "   👉 http://localhost:8083/online-library"
+        echo ""
+        echo "📝 Note: Don't forget '/online-library' at the end!"
+        echo "=========================================="
+    }
+}
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline completed successfully!"
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs!"
+        }
+        always {
+            echo "Pipeline finished."
+            bat "docker image prune -f"
+        }
+    }
+}
