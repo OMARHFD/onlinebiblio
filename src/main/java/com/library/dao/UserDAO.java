@@ -18,11 +18,11 @@ public class UserDAO {
         quantity, available_quantity, cover_image,
         created_at, updated_at
     """;
-    private static final String select = "SELECT ";  // Compliant
+    private static final String SELECT = "SELECT ";  // Compliant
 
 
     public User findByUsername(String username) {
-        String sql = select +BOOK_COLUMNS + "FROM users WHERE username = ?";
+        String sql = SELECT +BOOK_COLUMNS + "FROM users WHERE username = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -39,7 +39,7 @@ public class UserDAO {
     }
 
     public User findByEmail(String email) {
-        String sql = select +BOOK_COLUMNS+ "FROM users WHERE email = ?";
+        String sql = SELECT +BOOK_COLUMNS+ "FROM users WHERE email = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -56,7 +56,7 @@ public class UserDAO {
     }
 
     public User findById(int id) {
-        String sql = select +BOOK_COLUMNS +"FROM users WHERE id = ?";
+        String sql = SELECT +BOOK_COLUMNS +"FROM users WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -99,7 +99,7 @@ public class UserDAO {
 
     public List<User> findAll() {
         List<User> users = new ArrayList<>();
-        String sql = select+ BOOK_COLUMNS+ "FROM users ORDER BY created_at DESC";
+        String sql = SELECT+ BOOK_COLUMNS+ "FROM users ORDER BY created_at DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
              Statement stmt = conn.createStatement();

@@ -13,8 +13,8 @@ import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 
 public class BookDetailServlet extends HttpServlet {
-    private BookDAO bookDAO;
-    private BorrowingDAO borrowingDAO;
+    private transient BookDAO bookDAO;
+    private transient BorrowingDAO borrowingDAO;
     
     @Override
     public void init() throws ServletException {
@@ -29,7 +29,11 @@ public class BookDetailServlet extends HttpServlet {
         String bookIdParam = request.getParameter("id");
         
         if (bookIdParam == null || bookIdParam.trim().isEmpty()) {
-            response.sendRedirect("books");
+            try {
+                response.sendRedirect("books");
+            } catch (IOException e) {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Redirect failed");
+            }
             return;
         }
         
@@ -38,7 +42,11 @@ public class BookDetailServlet extends HttpServlet {
             Book book = bookDAO.findById(bookId);
             
             if (book == null) {
-                response.sendRedirect("books?error=Book not found");
+                try {
+                    response.sendRedirect("books");
+                } catch (IOException e) {
+                    response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Redirect failed");
+                }
                 return;
             }
             

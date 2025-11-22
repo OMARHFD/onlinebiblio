@@ -38,7 +38,6 @@ public class BorrowingDAO {
             }
         } catch (SQLException e) {
             logger.error("Failed to create borrowing for user {} and book {}", borrowing.getUserId(), borrowing.getBookId(), e);
-            throw new IllegalArgumentException("Unable to create borrowing", e);
         }
         return false;
     }
