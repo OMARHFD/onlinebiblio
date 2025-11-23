@@ -104,6 +104,11 @@ pipeline {
         bat "minikube kubectl -- apply -f k8s/mysql-service.yaml --validate=false"
         bat "minikube kubectl -- apply -f k8s/app-deployment.yaml --validate=false"
         bat "minikube kubectl -- apply -f k8s/app-service.yaml --validate=false"
+        bat "minikube kubectl -- apply -f k8s/servicemonitor.yaml"
+
+        bat "kubectl get pods -n monitoring"
+
+
 
         // Update image
         bat "minikube kubectl -- set image deployment/${K8S_DEPLOYMENT_NAME} online-library=${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} -n ${K8S_NAMESPACE} "
@@ -120,7 +125,7 @@ pipeline {
                 bat "minikube kubectl -- get services -n ${K8S_NAMESPACE}"
 
                 echo "=========================================="
-                echo "🚀 APPLICATION URL:"
+                echo "APPLICATION URL:"
                 echo "http://192.168.49.2:30080  (NodePort, IP fixe de Minikube)"
                 echo "=========================================="
             }
@@ -130,10 +135,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "Pipeline completed successfully!"
         }
         failure {
-            echo "❌ Pipeline failed. Check logs!"
+            echo "Pipeline failed. Check logs!"
         }
         always {
             echo "Pipeline finished."
