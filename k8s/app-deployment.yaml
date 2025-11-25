@@ -58,15 +58,16 @@ spec:
               value: "tarik123"
           readinessProbe:
             httpGet:
-              path: /
+              path: /index.jsp
               port: 8082
-            initialDelaySeconds: 45
+            initialDelaySeconds: 25
             periodSeconds: 10
             failureThreshold: 5
+
           livenessProbe:
             httpGet:
-              path: /
+              path: /index.jsp
               port: 8082
-            initialDelaySeconds: 60
+            initialDelaySeconds: 45
             periodSeconds: 10
             failureThreshold: 5
