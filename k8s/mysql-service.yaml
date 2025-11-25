@@ -1,4 +1,3 @@
-# k8s/mysql-service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,3 +10,4 @@ spec:
     - protocol: TCP
       port: 3306
       targetPort: 3306
+  clusterIP: None

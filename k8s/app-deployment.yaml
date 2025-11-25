@@ -1,3 +1,30 @@
+#apiVersion: apps/v1
+#kind: Deployment
+#metadata:
+#  name: online-library
+#  namespace: online-library
+#spec:
+#  replicas: 1
+#  selector:
+#    matchLabels:
+#      app: online-library
+#  template:
+#    metadata:
+#      labels:
+#        app: online-library
+#    spec:
+#      containers:
+#        - name: online-library
+#          image: tarik123abc/onlinebiblio:latest  # your Docker Hub image
+#          ports:
+#            - containerPort: 8080
+#          env:
+#            - name: DB_URL
+#              value: "jdbc:mysql://mysql:3306/online_library"
+#            - name: DB_USERNAME
+#              value: "root"
+#            - name: DB_PASSWORD
+#              value: "tarik123"
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,15 +40,33 @@ spec:
       labels:
         app: online-library
     spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: busybox:1.28
+          command: ['sh', '-c', 'until nc -z mysql 3306; do echo waiting for mysql; sleep 2; done;']
       containers:
         - name: online-library
-          image: tarik123abc/onlinebiblio:latest  # your Docker Hub image
+          image: tarik123abc/onlinebiblio:latest
           ports:
-            - containerPort: 8080
+            - containerPort: 8082
           env:
             - name: DB_URL
-              value: "jdbc:mysql://mysql:3306/online_library"
+              value: "jdbc:mysql://mysql:3306/online_library?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
             - name: DB_USERNAME
-              value: "root"
+              value: "tarik"
             - name: DB_PASSWORD
               value: "tarik123"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8082
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8082
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 5
